@@ -3,15 +3,10 @@ import os
 import json
 import yaml
 import socket
-import logging
 import subprocess
 
-logging.basicConfig(
-    format="%(asctime)s - %(levelname)s - %(filename)s - %(message)s",
-    level=logging.INFO,
-)
-
-logger = logging.getLogger(__name__)
+# Local Import
+from network_call.logging import logger
 
 # Constants
 UDP_IP = "0.0.0.0"  # Default ( listen from anywhere )
@@ -119,23 +114,3 @@ class UDPSocket:
             return encoded_json
         except Exception as e:
             logger.error(f"Unable to Reply!! - {str(e)}")
-
-
-if __name__ == "__main__":
-
-    socket_create = UDPSocket()
-
-    try:
-        while True:
-            received_data, return_address = socket_create.sock.recvfrom(
-                1024)  # Buffer size is 1024 bytes
-
-            if received_data.decode().upper() == "IP":  # can change this string to make it more secure
-                logger.info("Client Request for Server IP")
-                socket_create.sock.sendto(
-                    socket_create.reply(), return_address)
-
-    except KeyboardInterrupt as e:
-        # Close the socket
-        socket_create.sock.close()
-        logger.error("Closing the Socket!!")

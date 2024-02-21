@@ -9,6 +9,8 @@ packages = [{include = "udp_socket"}]
 [tool.poetry.dependencies]
 python = "^3.10"
 pyyaml = "^6.0.1"
+fastapi = "^0.109.2"
+uvicorn = "^0.27.1"
 
 
 [build-system]
