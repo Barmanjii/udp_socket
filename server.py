@@ -1,28 +1,141 @@
+# Python Imports
+import os
+import json
+import yaml
 import socket
+import logging
+import subprocess
 
-# Define the IP address and port to bind the socket
-UDP_IP = "0.0.0.0"  # localhost
-UDP_PORT = 12345       # Arbitrary port number
+logging.basicConfig(
+    format="%(asctime)s - %(levelname)s - %(filename)s - %(message)s",
+    level=logging.INFO,
+)
 
-# Create a UDP socket
-sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+logger = logging.getLogger(__name__)
 
-# Bind the socket to the IP address and port
-sock.bind((UDP_IP, UDP_PORT))
+# Constants
+UDP_IP = "0.0.0.0"  # Default ( listen from anywhere )
+UDP_PORT = 12345    # Fixed Port
 
-print("UDP server is running...")
-
-hostname = socket.gethostname()
-ip_address = socket.gethostbyname(hostname)
+socket.gethostname()
 
 
-while True:
-    # Receive data from the client
-    data, addr = sock.recvfrom(1024)  # Buffer size is 1024 bytes
+class UDPSocket:
+    def __init__(self) -> None:
 
-    if data.decode().upper() == "IP":
-        print("Request for IP received")
-        sock.sendto(ip_address.encode(), addr)
+        # Default Values
+        self.machine_id = None
+        self.wifi_ip = None
+        self.ethernet_ip = None
 
-# Close the socket
-sock.close()
+        # Create a UDP socket
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+        # Bind the socket to the IP address and port
+        self.sock.bind((UDP_IP, UDP_PORT))
+
+        logger.info("UDP server is running...")
+        self.ethernet_ip = self.get_ethernet_ip()
+        self.wifi_ip = self.get_wifi_ip()
+        self.get_machine_id()
+
+    def get_ethernet_ip(self):
+        """
+        Get ip of ethernet connection
+        """
+        try:
+            # Get Available Network Interfaces
+            result = subprocess.run(
+                ["ls", "/sys/class/net"], stdout=subprocess.PIPE
+            ).stdout.decode("utf-8")
+            network_interfaces = result.split("\n")[:-1]
+
+            for interface in network_interfaces:
+                command = "ifconfig %s | grep 'inet' | cut -d: -f2 | awk '{print $2}'" % (
+                    interface
+                )
+                # Need to remove last 2 \n s
+                ip_address = os.popen(command).read()[:-2]
+
+                if ip_address != "" and interface.startswith("e"):
+                    return ip_address.strip()
+
+        except Exception as ex:
+            logger.error(
+                "ppmt_nav_common: Exception in get_ethernet_ip: " + str(ex))
+
+    def get_wifi_ip(self):
+        """
+        Get ip of wifi connection
+        """
+        try:
+            # Get Available Network Interfaces
+            result = subprocess.run(
+                ["ls", "/sys/class/net"], stdout=subprocess.PIPE
+            ).stdout.decode("utf-8")
+            network_interfaces = result.split("\n")[:-1]
+
+            for interface in network_interfaces:
+                command = "ifconfig %s | grep 'inet' | cut -d: -f2 | awk '{print $2}'" % (
+                    interface
+                )
+                # Need to remove last 2 \n s
+                ip_address = os.popen(command).read()[:-2]
+
+                if ip_address != "" and interface.startswith("w"):
+                    return ip_address.strip()
+
+        except Exception as ex:
+            logger.error(
+                "ppmt_nav_common: Exception in get_wifi_ip: " + str(ex))
+
+    def get_machine_id(self):
+        """Get the Machine Id from the robot local storage.
+        """
+        machine_info_path = os.path.join(
+            os.getenv("HOME"), ".machineinfo.yaml")
+        try:
+            with open(machine_info_path, "r") as file:
+                data = yaml.safe_load(file)
+                self.machine_id = data.get('MACHINEID', 'Unknown')
+        except FileNotFoundError:
+            self.get_logger().info(
+                f"The file {machine_info_path} does not exist.")
+        except Exception as e:
+            self.get_logger().error(
+                f"Exception while reading the file - {str(e)}")
+
+    def reply(self):
+        try:
+            response = {
+                "machineId": self.machine_id,
+                "wifiIp": self.wifi_ip,
+                "ethernetIp": self.ethernet_ip
+            }
+
+            # Encode the JSON object as a string
+            json_string = json.dumps(response)
+            encoded_json = json_string.encode()
+            return encoded_json
+        except Exception as e:
+            logger.error(f"Unable to Reply!! - {str(e)}")
+
+
+if __name__ == "__main__":
+
+    socket_create = UDPSocket()
+
+    try:
+        while True:
+            received_data, return_address = socket_create.sock.recvfrom(
+                1024)  # Buffer size is 1024 bytes
+
+            if received_data.decode().upper() == "IP":  # can change this string to make it more secure
+                logger.info("Client Request for Server IP")
+                socket_create.sock.sendto(
+                    socket_create.reply(), return_address)
+
+    except KeyboardInterrupt as e:
+        # Close the socket
+        socket_create.sock.close()
+        logger.error("Closing the Socket!!")
