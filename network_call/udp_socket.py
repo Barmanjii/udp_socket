@@ -9,7 +9,7 @@ import subprocess
 from network_call.logging import logger
 
 # Constants
-UDP_IP = "0.0.0.0"  # Default ( listen from anywhere )
+UDP_IP = "0.0.0.0"  # Default ( listen to any IPv4 in the same Network)
 UDP_PORT = 12345    # Fixed Port
 
 socket.gethostname()
